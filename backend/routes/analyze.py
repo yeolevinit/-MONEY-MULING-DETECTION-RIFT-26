@@ -19,21 +19,24 @@ def analyze_transactions():
 
     file = request.files['file']
 
-    df = validate_csv(file)
+    try:
+        df = validate_csv(file)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     G = build_graph(df)
 
     cycles = detect_cycles(G)
-    smurfing = detect_smurfing(G, df)
+
+    # smurfing returns (suspicious_nodes, payroll_like, merchant_like, benford_violators)
+    smurfing_data = detect_smurfing(G, df)
+    suspicious_nodes, payroll_like, merchant_like, benford_violators = smurfing_data
+
     shell_chains = detect_shells(G, cycles)
 
-
     scores, rings, node_patterns, node_ring_map = calculate_scores(
-        G, cycles, smurfing, shell_chains
+        G, cycles, smurfing_data, shell_chains
     )
-
-
-
 
     response = format_response(
         scores,
@@ -41,8 +44,11 @@ def analyze_transactions():
         node_patterns,
         node_ring_map,
         start_time,
-        len(G.nodes)
+        len(G.nodes),
+        G=G,
+        df=df,
+        payroll_like=payroll_like,
+        merchant_like=merchant_like
     )
-
 
     return jsonify(response)
